@@ -1,4 +1,4 @@
-anthropic
+openai
 python-dotenv
 pydantic
 playwright
@@ -6,6 +6,7 @@ pyautogui
 pywinauto
 mss
 pillow
+pyperclip
 pynput
 pyyaml
 apscheduler

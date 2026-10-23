@@ -19,7 +19,7 @@ See [REQUIREMENTS.md](REQUIREMENTS.md) for the full requirement → implementati
  │  Model router: primary + fallback, backoff on rate limits        │
  ├──────────── HANDS ───────────┬──────────── EYES ─────────────────┤
  │ shell, file read/write       │ screenshots                       │
- │ browser (Playwright, Chrome) │ page DOM / accessibility tree     │
+ │ browser (Playwright, Chrome) │ numbered elements (DOM, UIA tree) │
  │ mouse + keyboard (desktop)   │ Windows UI Automation tree        │
  │                              │ terminal output                   │
  └──────────────────────────────┴───────────────────────────────────┘
@@ -57,3 +57,23 @@ copy data\passenger.example.json data\passenger.json
 ```
 
 Fill in `.env` and `data/passenger.json` locally. Neither is committed.
+
+## Models (free)
+
+Any provider with an OpenAI-compatible chat API works; requests go straight to that provider.
+Default: **Gemini** (free key from aistudio.google.com) as primary, **Groq** as fallback.
+Switching provider or model is a `.env` change (`PRIMARY_PROVIDER`, `PRIMARY_MODEL`, ...).
+
+The agent clicks by number, not by pixel: the eyes read the UI structure, number every element,
+and draw the numbers on the screenshot (Set-of-Marks). The model answers `click(17)`, which keeps
+free models accurate and lets text-only models act from the element list alone.
+
+## Run
+
+```bash
+python -m tests.smoke_offline
+python -m agent "Open Notepad, type 'hello from the agent', and save it to the Desktop as agent_test.txt"
+```
+
+Each run writes `runs/<timestamp>/`: `log.jsonl` (every action with its reason, timing and result), a PNG
+for every screenshot, and `meta.json` with the final status. Move the mouse into a screen corner to abort a run.
