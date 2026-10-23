@@ -18,8 +18,9 @@ from datetime import datetime
 
 from PIL import Image
 
-from . import prompts
+from . import prompts, skills
 from .config import Settings, settings as default_settings
+from .fastpath import FastPath
 from .eyes.marks import Observation, foreground_title, observe
 from .eyes.screen import Screen, png_bytes
 from .handoff import ConsoleHandoff, Handoff
@@ -73,8 +74,11 @@ class Agent:
         self.log: RunLog | None = None
         self.router = ModelRouter(settings, on_event=self._event)
         self.browser = Browser(settings.chrome_profile_dir, settings.downloads_dir, settings.browser_channel)
+        self.skills = skills.load_all(settings.skills_dir)
+        self.fastpath = FastPath(self)
         self.obs: Observation | None = None
         self._obs_page = None
+        self._step = 0
         self.pending_images: list[Image.Image] = []
 
     def _event(self, kind: str, **data) -> None:
@@ -83,15 +87,36 @@ class Agent:
         self.echo(f"[{kind}] {data}")
 
     # ------------------------------------------------------------------
+    def data_context(self) -> dict:
+        """Files under data/ that skills can reference, e.g. {data.passenger.name}."""
+        out: dict = {}
+        for f in sorted(self.settings.data_dir.glob("*.json")):
+            if f.name.endswith(".example.json"):
+                continue
+            try:
+                out[f.stem] = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+        return {"data": out}
+
     def run(self, task: str, system_extra: str = "") -> RunResult:
         s = self.settings
+        self.skills = skills.load_all(s.skills_dir)  # pick up skills added or improved since start
+        chosen = skills.select(self.skills, task)
         self.log = RunLog(s.runs_dir, task, meta={
             "routes": self.router.describe(),
             "screen": [self.screen.width, self.screen.height],
             "model_space": [self.screen.model_width, self.screen.model_height],
+            "skills": list(self.skills), "skill_selected": chosen.name if chosen else None,
         })
         self.echo("Models: " + "; ".join(self.router.describe()))
-        system = prompts.SYSTEM + (f"\n{system_extra}" if system_extra else "")
+        self.echo(f"Skills: {', '.join(self.skills) or 'none'}; selected: {chosen.name if chosen else 'none'}")
+        parts = [prompts.SYSTEM, skills.catalog(self.skills)]
+        if chosen:
+            parts.append(f"The skill below matches this task; follow it.\n\n{chosen.full_text()}")
+        if system_extra:
+            parts.append(system_extra)
+        system = "\n\n".join(p for p in parts if p)
         messages: list = [
             {"role": "system", "content": system},
             {"role": "user", "content": [{"type": "text", "text": prompts.task_message(
@@ -132,6 +157,7 @@ class Agent:
                 continue
             nudges = 0
 
+            self._step = step
             changed, finished = self._execute(step, assistant["tool_calls"], messages)
             if finished:
                 return self._finish(finished.get("status", "success"), finished.get("summary", ""),
@@ -275,6 +301,21 @@ class Agent:
         if name == "browser_close_tab":
             self.browser.ensure()
             return self.browser.close_tab()
+        if name == "load_skill":
+            sk = self.skills.get(a["name"])
+            if sk is None:
+                raise LookupError(f"No skill named {a['name']!r}. Skills: {list(self.skills)}")
+            self.log.event("skill_loaded", skill=sk.name)
+            return sk.full_text()
+        if name == "run_skill_steps":
+            sk = self.skills.get(a["name"])
+            if sk is None:
+                raise LookupError(f"No skill named {a['name']!r}. Skills: {list(self.skills)}")
+            if not sk.steps:
+                raise ValueError(f"Skill {sk.name} has no fast path (steps.yaml).")
+            raw = a.get("params_json") or "{}"
+            params = json.loads(raw) if isinstance(raw, str) else dict(raw)
+            return self.fastpath.run(sk, params, self._step, int(a.get("start_at", 1)))
         if name == "read_page":
             if not self.browser.running:
                 raise RuntimeError("The browser is not open. Use browser_open first.")

@@ -1,0 +1,30 @@
+steps:
+  - do: browser_open
+    url: https://httpbin.org/forms/post
+    note: open the form
+    expect: {element: {name: "Customer name"}}
+    timeout: 20
+    retries: 1
+  - do: type_text
+    target: {role: "input:text", name: "Customer name"}
+    text: "{name}"
+    clear: true
+    note: customer name
+  - do: type_text
+    target: {role: "input:tel"}
+    text: "{phone}"
+    clear: true
+    note: telephone
+  - do: click
+    target: {role: "input:radio", name: "{size}"}
+    note: pick the size
+    expect: {element: {role: "input:radio", name: "{size}", value: "checked"}}
+  - do: click
+    target: {role: "input:checkbox", name: "{topping}"}
+    note: pick the topping
+    expect: {element: {role: "input:checkbox", name: "{topping}", value: "checked"}}
+  - do: click
+    target: {role: button, name: "Submit order"}
+    note: submit
+    expect: {url: "/post", text: "custname"}
+    timeout: 20

@@ -103,6 +103,11 @@ def build_frames(run_dir: Path, events: list[dict], embed: bool) -> tuple[list[d
             stats["actions"] += 1
             if a["error"]:
                 stats["errors"] += 1
+        elif kind in ("skill_step", "skill_loaded"):
+            f = frame(e.get("step", max(frames) if frames else 0))
+            f["notes"].append({k: v for k, v in e.items() if k not in ("ts", "t")})
+            if kind == "skill_step":
+                stats["fast_path_steps"] = stats.get("fast_path_steps", 0) + 1
         elif kind == "handoff":
             f = frame(max(frames) if frames else 0)
             f["notes"].append({"kind": "handoff", "question": e.get("question"),
@@ -254,6 +259,8 @@ const chips = [
   `<span class="chip">${S.handoffs || 0} human handoffs</span>`,
   S.errors ? `<span class="chip">${S.errors} failed actions</span>` : '',
   S.model_switches ? `<span class="chip">${S.model_switches} model switches</span>` : '',
+  S.fast_path_steps ? `<span class="chip">${S.fast_path_steps} fast-path steps (no model)</span>` : '',
+  M.skill_selected ? `<span class="chip">skill: ${esc(M.skill_selected)}</span>` : '',
   ...Object.entries(S.routes || {}).map(([r, n]) => `<span class="chip">${esc(r)} &times;${n}</span>`),
   M.started ? `<span class="chip">started ${esc(M.started.replace('T', ' ').slice(0, 19))}</span>` : '',
 ].join('');
@@ -291,6 +298,9 @@ function render() {
       if (n.kind === 'handoff') return `<p class="note hand">&#128100; Asked a human (${esc(n.handoff_kind)}): ${esc(n.question)}</p>` +
         (n.screenshot ? `<img src="${n.screenshot}" style="width:100%;border-radius:4px" alt="Screen at handoff">` : '');
       if (n.kind === 'handoff_answer') return `<p class="note hand">&#8617; Human answered: ${esc(n.answer)}</p>`;
+      if (n.kind === 'skill_loaded') return `<p class="note">&#128218; Loaded skill ${esc(n.skill)}</p>`;
+      if (n.kind === 'skill_step') return `<p class="note${n.error ? ' warn' : ''}">&#9889; Fast path ${esc(n.skill)} #${esc(n.index)}` +
+        `${n.note ? ' (' + esc(n.note) + ')' : ''}: ${esc(n.error || n.result || '')}</p>`;
       return `<p class="note">${esc(n.kind)} ${esc(JSON.stringify(n))}</p>`;
     }).join('');
     $('actions').innerHTML = (f.actions || []).map(a => {

@@ -1,0 +1,30 @@
+steps:
+  - do: shell
+    command: Start-Process notepad.exe
+    note: launch Notepad
+  - wait_for: {window: " - Notepad"}
+    timeout: 15
+  - do: key
+    combo: ctrl+n
+    note: fresh tab
+    expect: {window: "Untitled"}
+  - do: type_text
+    text: "{text}"
+    note: type the text
+  - do: key
+    combo: ctrl+shift+s
+    note: open Save As
+    expect: {window: "Save as"}
+  - do: type_text
+    target: {role: Edit, name: "File name"}
+    text: "{path}"
+    clear: true
+    submit: true
+    note: enter the full path and save
+    expect: {window: ["{path|basename}", "Confirm Save As"]}
+  - if: {window: "Confirm Save As"}
+    do: key
+    combo: alt+y
+    note: replace the existing file
+  - wait_for: {window: "{path|basename} - Notepad"}
+    timeout: 10

@@ -6,8 +6,10 @@ import json
 import tempfile
 from pathlib import Path
 
+from agent import skills
 from agent.config import settings
-from agent.eyes.marks import observe, open_windows
+from agent.eyes.marks import Element, Observation, observe, open_windows
+from agent.fastpath import match
 from agent.eyes.screen import API_MAX_VISUAL_TOKENS, Screen, fit_scale
 from agent.models import _strip_images
 from agent.replay import build_frames, build_replay
@@ -81,6 +83,19 @@ def main() -> int:
         results.append(check("replay page", page.count("</script>") == 2 and "data:image/jpeg" in page
                              and len(frames) == 2 and stats["errors"] == 1 and stats["model_switches"] == 1
                              and frames[1]["notes"][0]["kind"] == "route_failed" and frames[0]["after"] is not None))
+
+    loaded = skills.load_all(settings.skills_dir)
+    results.append(check("skills load", all(s.description for s in loaded.values()), f"{list(loaded)}"))
+    results.append(check("skill selection", skills.select(loaded, "open notepad and save a note") is not None
+                         and skills.select(loaded, "zzz qqq") is None))
+    rendered = skills.render({"a": "{p|basename}-{today+1:%Y}", "b": "{{x}}"}, {"p": r"C:\d\f.txt"})
+    results.append(check("skill templating", rendered["a"].startswith("f.txt-") and rendered["b"] == "{x}"))
+    fake = Observation(image=img, raw=img, elements={
+        1: Element(1, "Button", "Save", "", (0, 0, 10, 10)),
+        2: Element(2, "input:radio", "Large", "checked", (0, 20, 10, 30))}, window="W", windows=[])
+    results.append(check("fast-path target match", match(fake, {"role": "button", "name": "save"}).id == 1
+                         and match(fake, {"role": "input", "value": "checked"}).id == 2
+                         and match(fake, {"name": "nope"}) is None))
 
     print(f"\n{sum(results)}/{len(results)} passed")
     return 0 if all(results) else 1

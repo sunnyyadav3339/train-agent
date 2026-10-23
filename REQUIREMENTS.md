@@ -7,11 +7,11 @@ Every line of the problem statement is mandatory. Status: ☐ not started · ◐
 | # | Requirement | Implementation | Status |
 |---|---|---|---|
 | H1 | One general-purpose agent: terminal, files, browser, desktop apps | Single process, one tool registry, no task-specific code | ☐ |
-| H2 | New task = new skill, not new code | Task knowledge lives only in `skills/` | ☐ |
+| H2 | New task = new skill, not new code | Task knowledge lives only in `skills/` | ☑ |
 | H3 | Hands: shell, file read/write, browser control, mouse + keyboard on any desktop app | `agent/tools/` | ☑ |
 | H4 | Eyes: screenshots + any structure (page DOM, terminal output) | `agent/eyes/` | ☑ |
 | H5 | Loop: plan, act, observe, verify, repeat until done or needs help | `agent/loop.py` | ◐ |
-| H6 | Skills: a folder of skill files | `skills/<name>/SKILL.md` | ☐ |
+| H6 | Skills: a folder of skill files | `skills/<name>/SKILL.md` | ☑ |
 | H7 | Triggers: chat command, schedule ("at 10:59:30"), event ("when an email arrives") | `agent/triggers/` | ☐ |
 | H8 | Human handoff: stuck / judgement call / payment → ask via own channel → resume | `agent/handoff.py` (Telegram) | ◐ |
 | H9 | Run log: every step with screenshot + reason, replayable by judges | `agent/runlog.py` → `runs/<id>/replay.html` | ☑ |

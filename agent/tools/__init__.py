@@ -80,7 +80,15 @@ TOOLS = [
           {"path": {"type": "string"}, "content": {"type": "string"}, "append": {"type": "boolean"}},
           ["path", "content"]),
     _tool("list_dir", "List a folder's entries.", {"path": {"type": "string"}}, ["path"]),
-    _tool("ask_human", "Pause and ask the human, then resume with their answer. Only when stuck after retrying, "
+    _tool("load_skill", "Load a skill's full instructions (and lessons from earlier runs) by name from the catalog.",
+          {"name": {"type": "string"}}, ["name"]),
+    _tool("run_skill_steps", "Replay a skill's fast path: known-good steps run by the harness without you, each "
+                             "checked. Returns where it finished or stopped; then continue from the screen.",
+          {"name": {"type": "string"},
+           "params_json": {"type": "string", "description": 'Skill params as a JSON object string, e.g. {"text": "hi"}'},
+           "start_at": {"type": "integer", "description": "Step number to start from (default 1)."}},
+          ["name"]),
+    _tool("ask_human","Pause and ask the human, then resume with their answer. Only when stuck after retrying, "
                        "at a judgement call the task does not settle, or for approval such as a payment.",
           {"question": {"type": "string"},
            "kind": {"type": "string", "enum": ["stuck", "judgement", "approval"]}},
@@ -94,4 +102,4 @@ TOOLS = [
 
 # Tools that change the screen: after them the harness waits briefly before observing.
 SCREEN_CHANGING = {"click", "click_xy", "type_text", "key", "scroll", "drag", "focus_window", "shell",
-                   "browser_open", "browser_back", "browser_switch_tab", "browser_close_tab"}
+                   "browser_open", "browser_back", "browser_switch_tab", "browser_close_tab", "run_skill_steps"}
