@@ -10,6 +10,8 @@ from agent.config import settings
 from agent.eyes.marks import observe, open_windows
 from agent.eyes.screen import API_MAX_VISUAL_TOKENS, Screen, fit_scale
 from agent.models import _strip_images
+from agent.replay import build_frames, build_replay
+from agent.runlog import RunLog
 from agent.tools import TOOLS
 from agent.tools.desktop import parse_combo
 from agent.tools.fs import list_dir, read_file, write_file
@@ -60,6 +62,22 @@ def main() -> int:
     msgs = [{"role": "user", "content": [{"type": "text", "text": "x"}, {"type": "image_url", "image_url": {"url": "d"}}]}]
     stripped = _strip_images(msgs)[0]["content"]
     results.append(check("text-only fallback strips images", all(p["type"] == "text" for p in stripped)))
+
+    with tempfile.TemporaryDirectory() as d:
+        log = RunLog(Path(d), "replay test")
+        log.event("task", task="replay test", screenshot=log.save_image(img, "start"))
+        log.event("model", step=1, route="gemini/x", latency_s=1.0, text="", calls=1)
+        log.event("action", step=1, tool="click", input={"id": 3}, reason="open menu", result="Clicked")
+        log.event("observe", step=1, screenshot=log.save_image(img, "s1_obs"), window="W", elements=5)
+        log.event("route_failed", route="gemini/x", status=429, exhausted=None, detail="slow down")
+        log.event("model", step=2, route="groq/y", latency_s=0.5, text="", calls=1)
+        log.event("action", step=2, tool="key", input={"combo": "</script>"}, reason="r", error="Error: boom")
+        log.close("failed", "test <b>summary</b>")
+        page = build_replay(log.dir).read_text(encoding="utf-8")
+        frames, stats = build_frames(log.dir, [json.loads(l) for l in (log.dir / "log.jsonl").open(encoding="utf-8")], False)
+        results.append(check("replay page", page.count("</script>") == 2 and "data:image/jpeg" in page
+                             and len(frames) == 2 and stats["errors"] == 1 and stats["model_switches"] == 1
+                             and frames[1]["notes"][0]["kind"] == "route_failed" and frames[0]["after"] is not None))
 
     print(f"\n{sum(results)}/{len(results)} passed")
     return 0 if all(results) else 1

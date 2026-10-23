@@ -23,6 +23,7 @@ from .eyes.marks import Observation, foreground_title, observe
 from .eyes.screen import Screen, png_bytes
 from .handoff import ConsoleHandoff, Handoff
 from .models import ModelRouter
+from .replay import build_replay
 from .runlog import RunLog
 from .tools import SCREEN_CHANGING, TOOLS
 from .tools import desktop
@@ -273,4 +274,8 @@ class Agent:
         self.log.event("final", screenshot=self.log.save_image(final, "final"), evidence=evidence)
         self.log.close(status, summary)
         self.echo(f"\n== {status.upper()} after {steps} steps: {summary}\n   run log: {self.log.dir}")
+        try:
+            self.echo(f"   replay:  {build_replay(self.log.dir)}")
+        except Exception as exc:  # the replay page must never cost us the run result
+            self.echo(f"   replay failed: {exc!r}")
         return RunResult(status, summary, str(self.log.dir), steps)

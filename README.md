@@ -76,4 +76,6 @@ python -m agent "Open Notepad, type 'hello from the agent', and save it to the D
 ```
 
 Each run writes `runs/<timestamp>/`: `log.jsonl` (every action with its reason, timing and result), a PNG
-for every screenshot, and `meta.json` with the final status. Move the mouse into a screen corner to abort a run.
+for every screenshot, `meta.json` with the final status, and **`replay.html`**: one self-contained page
+(screenshots embedded) to step through the run with Prev/Next, arrow keys or Play. Rebuild one with
+`python -m agent.replay runs/<timestamp>`. Move the mouse into a screen corner to abort a run.

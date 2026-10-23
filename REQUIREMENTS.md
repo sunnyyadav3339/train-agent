@@ -14,7 +14,7 @@ Every line of the problem statement is mandatory. Status: ☐ not started · ◐
 | H6 | Skills: a folder of skill files | `skills/<name>/SKILL.md` | ☐ |
 | H7 | Triggers: chat command, schedule ("at 10:59:30"), event ("when an email arrives") | `agent/triggers/` | ☐ |
 | H8 | Human handoff: stuck / judgement call / payment → ask via own channel → resume | `agent/handoff.py` (Telegram) | ◐ |
-| H9 | Run log: every step with screenshot + reason, replayable by judges | `agent/runlog.py` → `runs/<id>/replay.html` | ◐ |
+| H9 | Run log: every step with screenshot + reason, replayable by judges | `agent/runlog.py` → `runs/<id>/replay.html` | ☑ |
 
 ## Bonus
 
