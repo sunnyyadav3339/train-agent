@@ -1,0 +1,15 @@
+# Copy to data/triggers.yaml (git-ignored) and edit. Read by the daemon: python -m agent.serve
+# Needs IMAP_USER and IMAP_APP_PASSWORD in .env (Gmail: Google Account > Security > App passwords).
+
+email:
+  # Mail yourself "agent: <task>" and the agent runs the task.
+  - name: mail-a-task
+    from: "you@gmail.com"
+    subject: "agent:"
+    task: "{subject|strip}. Details from the email: {body}"
+
+  # Example: react to a specific sender.
+  # - name: ticket-mail
+  #   from: "irctc"
+  #   subject: "booking"
+  #   task: "Save the attached ticket from the email '{subject}' to the Desktop."

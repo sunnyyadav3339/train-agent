@@ -29,7 +29,7 @@ import time
 from .eyes.marks import Element, Observation
 from .skills import Skill, render
 
-ACTIONS = {"click", "click_xy", "type_text", "key", "scroll", "drag", "wait", "focus_window", "shell",
+ACTIONS = {"click", "click_xy", "type_text", "key", "scroll", "drag", "wait", "wait_until", "focus_window", "shell",
            "browser_open", "browser_back", "browser_switch_tab", "browser_close_tab", "read_page",
            "write_file", "read_file", "list_dir"}
 DEFAULT_TIMEOUT = 10.0

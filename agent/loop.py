@@ -18,7 +18,9 @@ from datetime import datetime
 
 from PIL import Image
 
-from . import prompts, skills
+import threading
+
+from . import clock, prompts, skills
 from .config import Settings, settings as default_settings
 from .fastpath import FastPath
 from .eyes.marks import Observation, foreground_title, observe
@@ -79,6 +81,7 @@ class Agent:
         self.obs: Observation | None = None
         self._obs_page = None
         self._step = 0
+        self.cancel = threading.Event()  # set from outside (e.g. /stop) to end the run cleanly
         self.pending_images: list[Image.Image] = []
 
     def _event(self, kind: str, **data) -> None:
@@ -101,6 +104,7 @@ class Agent:
 
     def run(self, task: str, system_extra: str = "") -> RunResult:
         s = self.settings
+        self.cancel.clear()
         self.skills = skills.load_all(s.skills_dir)  # pick up skills added or improved since start
         chosen = skills.select(self.skills, task)
         self.log = RunLog(s.runs_dir, task, meta={
@@ -123,12 +127,14 @@ class Agent:
             {"role": "system", "content": system},
             {"role": "user", "content": [{"type": "text", "text": prompts.task_message(
                 task, self.screen.model_width, self.screen.model_height,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"))}]},
+                clock.now().strftime("%Y-%m-%d %H:%M:%S"))}]},
         ]
         self._observe_into(messages, step=0, settle=False)
 
         nudges = 0
         for step in range(1, s.max_steps + 1):
+            if self.cancel.is_set():
+                return self._finish("stopped", "Stopped by the human before finishing.", step - 1)
             t0 = time.time()
             try:
                 msg, route = self.router.chat(messages, TOOLS)
@@ -326,6 +332,14 @@ class Agent:
             secs = min(float(a.get("seconds", 1)), 60)
             time.sleep(secs)
             return f"Waited {secs}s"
+        if name == "wait_until":
+            target = clock.parse_when(str(a["time"]))
+            wait = (target - clock.now()).total_seconds()
+            if wait > 3 * 3600:
+                raise ValueError(f"{target} is more than 3 hours away; schedule the task instead.")
+            if not clock.sleep_until(target, cancelled=self.cancel.is_set):
+                raise RuntimeError("Run was stopped while waiting.")
+            return f"It is now {clock.now():%H:%M:%S.%f}"[:-3] + f" (waited {max(wait, 0):.1f}s; {clock.status()})"
         if name == "focus_window":
             return desktop.focus_window(a["title"])
         if name == "shell":

@@ -46,6 +46,14 @@ class TelegramHandoff:
         self.console = ConsoleHandoff()
 
     def ask(self, question: str, kind: str, screenshot: Image.Image | None) -> str:
+        # Mark the whole exchange as awaiting, so a fast reply is routed to us, not taken as chat.
+        self.tg.awaiting = True
+        try:
+            return self._ask(question, kind, screenshot)
+        finally:
+            self.tg.awaiting = False
+
+    def _ask(self, question: str, kind: str, screenshot: Image.Image | None) -> str:
         icon = ICONS.get(kind, "❓")
         how = "Tap a button." if kind == "approval" else "Reply with a message."
         caption = f"{icon} Agent needs you ({kind})\n\n{question}\n\n{how}"

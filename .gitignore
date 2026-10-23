@@ -24,3 +24,8 @@ Thumbs.db
 # Agent browser profile and downloads
 data/chrome-profile/
 data/downloads/
+
+# Daemon state (personal)
+data/schedule.json
+data/triggers.yaml
+data/email_state.json

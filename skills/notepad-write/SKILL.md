@@ -25,6 +25,9 @@ the text.
 
 ## Known failures and recovery
 - `Start-Process notepad` sometimes opens "Select an app to open": pick Notepad in that list.
+- Other Notepad windows may already be open (earlier files). `focus_window` " - Notepad" before
+  `ctrl+n`, then check the title says "Untitled" before typing; never type into a tab that
+  already holds another file.
 - If typing went somewhere else, the wrong-window guard stops it: `focus_window` "Notepad" first.
 - Closing: `ctrl+w` closes the tab, `alt+f4` closes Notepad. Only close when the task says so.
 

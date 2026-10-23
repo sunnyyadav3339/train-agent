@@ -101,8 +101,70 @@ def main() -> int:
                          and match(fake, {"name": "nope"}) is None))
 
     results.extend(handoff_checks(img))
+    results.extend(trigger_checks())
 
     print(f"\n{sum(results)}/{len(results)} passed")
+
+
+def trigger_checks() -> list[bool]:
+    from datetime import datetime, timedelta
+    from email.message import EmailMessage
+
+    from agent import clock
+    from agent.serve import Daemon, split_when
+    from agent.triggers.email_watch import _body_text, matches
+    from agent.triggers.schedule import JobStore
+
+    out = []
+    base = datetime(2026, 10, 25, 10, 0, 0)
+    out.append(check("parse times", clock.parse_when("10:59:30", base) == datetime(2026, 10, 25, 10, 59, 30)
+                     and clock.parse_when("09:00", base) == datetime(2026, 10, 26, 9, 0)
+                     and clock.parse_when("tomorrow 10:45", base) == datetime(2026, 10, 26, 10, 45)
+                     and clock.parse_when("in 5m", base) == base + timedelta(minutes=5)
+                     and clock.parse_when("2026-10-25 11:00:00", base) == datetime(2026, 10, 25, 11, 0)))
+    out.append(check("split /at text", split_when("tomorrow 10:45 book it") == ("tomorrow 10:45", "book it")
+                     and split_when("10:59:30 go") == ("10:59:30", "go")))
+    with tempfile.TemporaryDirectory() as d:
+        store = JobStore(Path(d) / "s.json")
+        now = datetime(2026, 10, 25, 11, 0, 0)
+        store.add("due", now - timedelta(seconds=1))
+        store.add("missed", now - timedelta(minutes=30))
+        daily = store.add("daily", now - timedelta(seconds=2), repeat="daily")
+        store.add("later", now + timedelta(hours=1))
+        run, missed = store.take_due(now)
+        left = {j.task: j for j in store.list()}
+        out.append(check("schedule due/missed/daily",
+                         sorted(j.task for j in run) == ["daily", "due"] and [j.task for j in missed] == ["missed"]
+                         and set(left) == {"daily", "later"} and left["daily"].when.date() == datetime(2026, 10, 26).date()
+                         and store.cancel(daily.id) and len(store.list()) == 1))
+
+    msg = EmailMessage()
+    msg["From"], msg["Subject"] = "Me <me@x.com>", "agent: open notepad"
+    msg.set_content("type hello please")
+    out.append(check("email rule + body", matches({"from": "me@x.com", "subject": "agent:"}, msg["From"], msg["Subject"])
+                     and not matches({"from": "boss@x.com"}, msg["From"], msg["Subject"])
+                     and _body_text(msg) == "type hello please"))
+
+    fake = FakeTelegram(chat_id=42)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            dm = Daemon.__new__(Daemon)
+            dm.settings, dm.echo = settings, (lambda *a: None)
+            dm.store, dm.requests = JobStore(Path(d) / "s.json"), __import__("queue").Queue()
+            dm.tg, dm.email, dm.agent, dm.current = Telegram("T", 42, api=fake.url), None, None, None
+            dm.handle_command("/at in 10m say hi")
+            dm.handle_command("/daily 08:00:00 morning check")
+            jobs = dm.store.list()
+            dm.handle_command(f"/cancel {jobs[0].id}")
+            dm.handle_command("/run open notepad")
+            dm.handle_command("/status")
+            texts = [p.get("text", "") for m, p in fake.sent if m == "sendMessage"]
+            out.append(check("telegram commands", len(jobs) == 2 and len(dm.store.list()) == 1
+                             and dm.requests.get_nowait().task == "open notepad"
+                             and any(t.startswith("Clock:") for t in texts)))
+    finally:
+        fake.close()
+    return out
 
 
 def handoff_checks(img) -> list[bool]:

@@ -4,10 +4,17 @@ steps:
     note: launch Notepad
   - wait_for: {window: " - Notepad"}
     timeout: 15
+  # Notepad may already be open with other files: bring the front-most Notepad window
+  # forward before Ctrl+N, so the new tab opens there and not in whatever had focus.
+  - do: focus_window
+    title: " - Notepad"
+    note: focus Notepad
   - do: key
     combo: ctrl+n
     note: fresh tab
     expect: {window: "Untitled"}
+    timeout: 4
+    retries: 2
   - do: type_text
     text: "{text}"
     note: type the text

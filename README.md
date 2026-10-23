@@ -87,6 +87,20 @@ Each run also sends a start message and, at the end, the final screenshot plus `
 
 Without these two values the agent asks in the console instead.
 
+## Triggers (daemon)
+
+`python -m agent.serve` keeps running and starts tasks from three triggers; runs go one at a time.
+
+- **Chat**: Telegram `/run <task>`, `/at 10:59:30 <task>`, `/daily 08:00 <task>`, `/jobs`, `/cancel <id>`,
+  `/stop`, `/status`, `/help` (only from your chat).
+- **Schedule**: `python -m agent.serve add "10:59:30" "<task>"` (also `tomorrow 10:45`, `in 5m`, `--daily`);
+  saved in `data/schedule.json`. The clock is synced to internet time (NTP), the PC is kept awake while
+  jobs are pending, and a job missed by more than 2 minutes is reported instead of run late.
+- **Email**: copy `data/triggers.example.yaml` to `data/triggers.yaml`, set `IMAP_USER` and
+  `IMAP_APP_PASSWORD` (Gmail app password) in `.env`; matching new mail starts the task in its rule.
+
+Skills and the model can also wait for an exact moment with `wait_until` (e.g. `11:00:00`).
+
 ## Run
 
 ```bash

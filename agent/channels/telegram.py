@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import queue
 import sys
 import time
 import urllib.error
@@ -33,6 +34,10 @@ class Telegram:
         self.base = f"{api}/bot{token}"
         self.chat_id = str(chat_id) if chat_id not in (None, "") else None
         self.offset: int | None = None
+        # Daemon mode: one poller thread reads updates and puts handoff replies here,
+        # so commands and replies never compete for getUpdates.
+        self.inbox: queue.Queue | None = None
+        self.awaiting = False  # a handoff is waiting for a reply
 
     # --- transport ----------------------------------------------------------
     def _call(self, method: str, params: dict | None = None, files: dict | None = None, timeout: float = 40):
@@ -87,8 +92,20 @@ class Telegram:
 
     def drain(self) -> None:
         """Skip anything sent before now, so old messages are never taken as answers."""
+        if self.inbox is not None:
+            while not self.inbox.empty():
+                self.inbox.get_nowait()
+            return
         while self.updates(timeout=0):
             pass
+
+    def _next_batch(self, wait_s: float) -> list[dict]:
+        if self.inbox is None:
+            return self.updates(timeout=int(min(25, max(1, wait_s))))
+        try:
+            return [self.inbox.get(timeout=min(25.0, max(0.5, wait_s)))]
+        except queue.Empty:
+            return []
 
     def _mine(self, update: dict) -> bool:
         chat = (update.get("message") or (update.get("callback_query") or {}).get("message") or {}).get("chat", {})
@@ -97,9 +114,16 @@ class Telegram:
     def wait_reply(self, timeout_s: float, after_message_id: int | None = None) -> str | None:
         """First text reply or button press from our chat, or None on timeout."""
         deadline = time.time() + timeout_s
+        was_awaiting, self.awaiting = self.awaiting, True
+        try:
+            return self._wait_reply(deadline, after_message_id)
+        finally:
+            self.awaiting = was_awaiting
+
+    def _wait_reply(self, deadline: float, after_message_id: int | None) -> str | None:
         while time.time() < deadline:
             try:
-                batch = self.updates(timeout=int(min(25, max(1, deadline - time.time()))))
+                batch = self._next_batch(deadline - time.time())
             except TelegramError:
                 time.sleep(3)  # network blip: keep waiting
                 continue

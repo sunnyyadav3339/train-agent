@@ -57,7 +57,10 @@ TOOLS = [
     _tool("wait", "Wait for the screen to change (page loads, app starts).",
           {"seconds": {"type": "number"}},
           ["seconds"]),
-    _tool("focus_window", "Bring an open window to the front by part of its title.",
+    _tool("wait_until", "Wait until an exact clock time (internet-synced), e.g. '11:00:00' or "
+                        "'2026-10-25 11:00:00'. For actions that must happen the second a window opens.",
+          {"time": {"type": "string"}}, ["time"]),
+    _tool("focus_window","Bring an open window to the front by part of its title.",
           {"title": {"type": "string"}},
           ["title"]),
     _tool("browser_open", "Open a URL in the agent's own Chrome (launches it if needed) and bring it to the "
