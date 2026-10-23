@@ -1,0 +1,59 @@
+# train-agent
+
+A general-purpose computer-use agent built for **Syntax Error 2026 — Alum Track Dev I: "Do You Know How to Train?"**
+
+One generic harness, many skills. The harness sees the screen, decides, acts, checks the result and loops until the
+task is done or it needs a human. A new task needs a new skill, not new code. The final exam: book the cheapest
+Tatkal ticket Roorkee → Haridwar the second the 11:00 window opens, hands-free except for approving the payment.
+
+See [REQUIREMENTS.md](REQUIREMENTS.md) for the full requirement → implementation map and the build order.
+
+## Architecture
+
+```
+ Triggers ─┐   chat (Telegram) · schedule (APScheduler) · event (IMAP "when an email arrives")
+           ▼
+ ┌──────────────── HARNESS (generic, no task-specific code) ────────┐
+ │  Skill loader → picks skills/<name>/SKILL.md by description      │
+ │  Loop:  PLAN → ACT → OBSERVE → VERIFY → (retry / recover / ask)  │
+ │  Model router: primary + fallback, backoff on rate limits        │
+ ├──────────── HANDS ───────────┬──────────── EYES ─────────────────┤
+ │ shell, file read/write       │ screenshots                       │
+ │ browser (Playwright, Chrome) │ page DOM / accessibility tree     │
+ │ mouse + keyboard (desktop)   │ Windows UI Automation tree        │
+ │                              │ terminal output                   │
+ └──────────────────────────────┴───────────────────────────────────┘
+   Human handoff: Telegram (screenshot + question) → pause → resume
+   Run log: every step → JSONL + screenshot + reason → replay.html
+   After a run: reflection writes lessons back into the skill
+```
+
+## Layout
+
+```
+agent/
+  loop.py          plan → act → observe → verify state machine
+  models.py        model router (primary + fallback)
+  skills.py        skill discovery, matching, steps.yaml runner
+  runlog.py        per-step JSONL + screenshots + replay.html
+  handoff.py       pause / ask a human / resume
+  tools/           hands: shell, fs, browser, desktop
+  eyes/            screen capture, DOM, UI Automation tree
+  triggers/        chat, schedule, email
+skills/            one folder per job (SKILL.md, steps.yaml, lessons.md)
+data/              local inputs (passenger.json is git-ignored)
+runs/              run logs (git-ignored)
+```
+
+## Setup
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+playwright install chromium
+copy .env.example .env
+copy data\passenger.example.json data\passenger.json
+```
+
+Fill in `.env` and `data/passenger.json` locally. Neither is committed.

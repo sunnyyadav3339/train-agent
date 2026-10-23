@@ -1,0 +1,14 @@
+anthropic
+python-dotenv
+pydantic
+playwright
+pyautogui
+pywinauto
+mss
+pillow
+pynput
+pyyaml
+apscheduler
+ntplib
+python-telegram-bot
+imapclient
