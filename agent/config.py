@@ -65,6 +65,11 @@ class Settings:
     settle_seconds: float = field(default_factory=lambda: float(_env("SETTLE_SECONDS", "0.6")))
     shell_timeout: int = field(default_factory=lambda: int(_env("SHELL_TIMEOUT", "120")))
     runs_dir: Path = field(default_factory=lambda: ROOT / _env("RUNS_DIR", "runs"))
+    # The agent's own Chrome profile (logins persist across runs; separate from your daily profile).
+    chrome_profile_dir: Path = field(default_factory=lambda: Path(
+        _env("CHROME_USER_DATA_DIR") or ROOT / "data" / "chrome-profile"))
+    browser_channel: str = field(default_factory=lambda: _env("BROWSER_CHANNEL", "chrome"))
+    downloads_dir: Path = field(default_factory=lambda: ROOT / "data" / "downloads")
     skills_dir: Path = ROOT / "skills"
     data_dir: Path = ROOT / "data"
 

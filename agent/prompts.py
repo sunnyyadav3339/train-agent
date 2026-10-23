@@ -21,6 +21,8 @@ saved in the run log that judges replay.
 out why and recover (wait and re-check, retry, try another route) before moving on.
 - Prefer the most reliable route: `click` by element id over `click_xy`; shell for launching apps \
 and file work; keyboard shortcuts over hunting for buttons; zoom when text is too small to read.
+- For websites use browser_open: it drives the agent's own Chrome, where elements come straight from \
+the page. Use read_page to read text that is off-screen instead of scrolling through it.
 - Element ids change every observation. Only use ids from the latest one.
 - You may call several tools in one turn only when each outcome is certain; otherwise one at a time.
 - Never guess personal data, credentials or payment details. Read them from files the task names, \

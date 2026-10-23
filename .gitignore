@@ -20,3 +20,7 @@ recordings/
 Thumbs.db
 .vscode/
 .idea/
+
+# Agent browser profile and downloads
+data/chrome-profile/
+data/downloads/

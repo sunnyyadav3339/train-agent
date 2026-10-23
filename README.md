@@ -64,6 +64,11 @@ Any provider with an OpenAI-compatible chat API works; requests go straight to t
 Default: **Gemini** (free key from aistudio.google.com) as primary, **Groq** as fallback.
 Switching provider or model is a `.env` change (`PRIMARY_PROVIDER`, `PRIMARY_MODEL`, ...).
 
+For websites the agent drives its **own visible Chrome** (Playwright, separate profile in
+`data/chrome-profile/`, so logins persist between runs). While that window is in front, the eyes
+read the page DOM and the hands act inside the page in page pixels; downloads land in
+`data/downloads/`. Everything else goes through the desktop path.
+
 The agent clicks by number, not by pixel: the eyes read the UI structure, number every element,
 and draw the numbers on the screenshot (Set-of-Marks). The model answers `click(17)`, which keeps
 free models accurate and lets text-only models act from the element list alone.

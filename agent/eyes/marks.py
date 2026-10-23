@@ -1,19 +1,26 @@
 """Set-of-Marks: number every useful element on screen so the model can say `click(17)`.
 
-Elements come from structure (the Windows UI Automation tree today, the browser DOM in
-Phase 3). The same numbers are drawn on the screenshot, so a vision model can match what
-it sees to an id, and a text-only model can still act from the list alone.
+Elements come from structure: the Windows UI Automation tree for desktop apps, the page DOM
+when the agent's browser is in front. The same numbers are drawn on the screenshot, so a
+vision model can match what it sees to an id, and a text-only model can still act from the
+list alone.
+
+An observation has a mode. "desktop": surface pixels are real screen pixels. "browser":
+surface pixels are CSS pixels of the page viewport. `to_model` / `to_surface` convert
+between surface pixels and the screenshot space the model sees.
 """
 
 from __future__ import annotations
 
 import ctypes
+import io
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Callable
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .screen import Screen
+from .screen import Screen, fit_scale
 
 CLICKABLE = {
     "Button", "SplitButton", "Edit", "ComboBox", "CheckBox", "RadioButton", "Hyperlink",
@@ -31,13 +38,13 @@ class Element:
     role: str
     name: str
     value: str
-    rect: tuple[int, int, int, int]  # screen pixels: left, top, right, bottom
+    rect: tuple[float, float, float, float]  # surface pixels: left, top, right, bottom
     source: str = "uia"
 
     @property
-    def center(self) -> tuple[int, int]:
+    def center(self) -> tuple[float, float]:
         l, t, r, b = self.rect
-        return (l + r) // 2, (t + b) // 2
+        return (l + r) / 2, (t + b) / 2
 
     def line(self) -> str:
         v = f' value="{self.value[:60]}"' if self.value else ""
@@ -51,11 +58,24 @@ class Observation:
     elements: dict[int, Element]
     window: str
     windows: list[str]
+    mode: str = "desktop"       # desktop | browser
+    to_model: Callable[[float, float], tuple[float, float]] = field(default=lambda x, y: (x, y), repr=False)
+    to_surface: Callable[[float, float], tuple[float, float]] = field(default=lambda x, y: (x, y), repr=False)
+    url: str = ""
+    tabs: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     def text(self) -> str:
         lines = [f'Active window: "{self.window}"']
+        if self.mode == "browser":
+            lines.append(f"Browser (the agent's Chrome) is in front. URL: {self.url}")
+            if len(self.tabs) > 1:
+                lines.append("Tabs: " + " | ".join(self.tabs))
+            lines.append("The screenshot shows the page area only. Use read_page for the full page text.")
         if self.windows:
             lines.append("Open windows: " + " | ".join(self.windows[:15]))
+        for n in self.notes:
+            lines.append(f"Note: {n}")
         if self.elements:
             lines.append("Elements (use the id with click / type_text / scroll):")
             lines.extend(e.line() for e in self.elements.values())
@@ -99,6 +119,10 @@ def top_windows() -> list[tuple[int, str]]:
 
 def open_windows() -> list[str]:
     return [t for _, t in top_windows()]
+
+
+def foreground_hwnd() -> int:
+    return ctypes.windll.user32.GetForegroundWindow() or 0
 
 
 def foreground_title() -> str:
@@ -161,7 +185,7 @@ def collect_uia(screen: Screen, max_elements: int) -> tuple[str, list[Element]]:
     return title, found
 
 
-def annotate(img: Image.Image, elements: list[Element], screen: Screen) -> Image.Image:
+def annotate(img: Image.Image, elements: list[Element], to_model) -> Image.Image:
     out = img.copy()
     draw = ImageDraw.Draw(out)
     try:
@@ -170,8 +194,8 @@ def annotate(img: Image.Image, elements: list[Element], screen: Screen) -> Image
         font = ImageFont.load_default()
     for e in elements:
         color = COLORS[e.id % len(COLORS)]
-        l, t = screen.to_model(e.rect[0], e.rect[1])
-        r, b = screen.to_model(e.rect[2], e.rect[3])
+        l, t = to_model(e.rect[0], e.rect[1])
+        r, b = to_model(e.rect[2], e.rect[3])
         draw.rectangle([l, t, r, b], outline=color, width=2)
         label = str(e.id)
         tw, th = draw.textbbox((0, 0), label, font=font)[2:]
@@ -181,17 +205,65 @@ def annotate(img: Image.Image, elements: list[Element], screen: Screen) -> Image
     return out
 
 
-def observe(screen: Screen, max_elements: int) -> Observation:
-    raw = screen.capture()
-    title, elements = collect_uia(screen, max_elements)
-    # Number top-to-bottom, left-to-right so ids read naturally.
+def _number(elements: list[Element]) -> None:
+    """Number top-to-bottom, left-to-right so ids read naturally."""
     elements.sort(key=lambda e: (e.rect[1] // 10, e.rect[0]))
     for i, e in enumerate(elements, start=1):
         e.id = i
+
+
+def observe(screen: Screen, max_elements: int, browser=None) -> Observation:
+    fg = foreground_title()
+    if browser is not None and browser.is_foreground(fg):
+        try:
+            return observe_browser(screen, max_elements, browser, fg)
+        except Exception:
+            pass  # page busy or mid-navigation: fall back to the desktop view
+    raw = screen.capture()
+    title, elements = collect_uia(screen, max_elements)
+    _number(elements)
+    notes = browser.take_notes() if browser is not None else []
     return Observation(
-        image=annotate(raw, elements, screen),
+        image=annotate(raw, elements, screen.to_model),
         raw=raw,
         elements={e.id: e for e in elements},
-        window=foreground_title() or title,
+        window=fg or title,
         windows=open_windows(),
+        to_model=screen.to_model,
+        to_surface=lambda x, y: screen.to_screen(x, y),
+        notes=notes,
+    )
+
+
+def observe_browser(screen: Screen, max_elements: int, browser, fg: str) -> Observation:
+    """Page-area screenshot plus numbered DOM elements, all in CSS pixels of the viewport."""
+    browser.settle(timeout_ms=3000)
+    vp = browser.viewport()
+    shot = Image.open(io.BytesIO(browser.screenshot_png())).convert("RGB")
+    scale = fit_scale(shot.width, shot.height, max(screen.model_width, screen.model_height))
+    if scale < 1.0:
+        shot = shot.resize((round(shot.width * scale), round(shot.height * scale)), Image.LANCZOS)
+    k = shot.width / vp["w"]  # model pixels per CSS pixel
+
+    def to_model(x: float, y: float) -> tuple[float, float]:
+        return x * k, y * k
+
+    def to_surface(x: float, y: float) -> tuple[float, float]:
+        return min(max(x / k, 0), vp["w"] - 1), min(max(y / k, 0), vp["h"] - 1)
+
+    elements = [Element(0, d["role"], d["name"], d["value"], tuple(d["rect"]), "dom")
+                for d in browser.elements(max_elements)]
+    _number(elements)
+    return Observation(
+        image=annotate(shot, elements, to_model),
+        raw=shot,
+        elements={e.id: e for e in elements},
+        window=fg,
+        windows=open_windows(),
+        mode="browser",
+        to_model=to_model,
+        to_surface=to_surface,
+        url=browser.page.url,
+        tabs=browser.tabs(),
+        notes=browser.take_notes(),
     )

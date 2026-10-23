@@ -60,7 +60,17 @@ TOOLS = [
     _tool("focus_window", "Bring an open window to the front by part of its title.",
           {"title": {"type": "string"}},
           ["title"]),
-    _tool("shell", "Run PowerShell on this Windows machine; returns exit code, stdout, stderr. The command "
+    _tool("browser_open", "Open a URL in the agent's own Chrome (launches it if needed) and bring it to the "
+                          "front. While it is in front, observations show the page and its numbered elements.",
+          {"url": {"type": "string"}, "new_tab": {"type": "boolean"}},
+          ["url"]),
+    _tool("browser_back", "Go back one page in the active browser tab.", {}, []),
+    _tool("browser_switch_tab", "Make another browser tab active (index from the Tabs list) and show it.",
+          {"index": {"type": "integer"}}, ["index"]),
+    _tool("browser_close_tab", "Close the active browser tab.", {}, []),
+    _tool("read_page", "Return the visible text of the whole active web page (beyond what the screenshot shows).",
+          {"max_chars": {"type": "integer"}}, []),
+    _tool("shell","Run PowerShell on this Windows machine; returns exit code, stdout, stderr. The command "
                    "already runs inside PowerShell: do not wrap it in `powershell -Command`. Good for "
                    "launching apps (Start-Process notepad), files, and checking state.",
           {"command": {"type": "string"}, "cwd": {"type": "string"}},
@@ -83,4 +93,5 @@ TOOLS = [
 ]
 
 # Tools that change the screen: after them the harness waits briefly before observing.
-SCREEN_CHANGING = {"click", "click_xy", "type_text", "key", "scroll", "drag", "focus_window", "shell"}
+SCREEN_CHANGING = {"click", "click_xy", "type_text", "key", "scroll", "drag", "focus_window", "shell",
+                   "browser_open", "browser_back", "browser_switch_tab", "browser_close_tab"}

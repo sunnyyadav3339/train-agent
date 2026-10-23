@@ -13,6 +13,7 @@ from agent.models import _strip_images
 from agent.replay import build_frames, build_replay
 from agent.runlog import RunLog
 from agent.tools import TOOLS
+from agent.tools.browser import pw_combo
 from agent.tools.desktop import parse_combo
 from agent.tools.fs import list_dir, read_file, write_file
 from agent.tools.shell import run_shell
@@ -40,6 +41,8 @@ def main() -> int:
 
     results.append(check("key combos", parse_combo("ctrl+s") == ["ctrl", "s"] and parse_combo("Return") == ["enter"]
                          and parse_combo("alt+Tab") == ["alt", "tab"] and parse_combo("super") == ["win"]))
+    results.append(check("browser key combos", pw_combo("ctrl+a") == "Control+a" and pw_combo("Return") == "Enter"
+                         and pw_combo("shift+tab") == "Shift+Tab" and pw_combo("esc") == "Escape"))
 
     obs = observe(screen, settings.max_elements)
     results.append(check("numbered elements", len(obs.elements) > 0 and min(obs.elements) == 1,
