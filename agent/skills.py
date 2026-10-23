@@ -19,7 +19,14 @@ from pathlib import Path
 import yaml
 
 FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.S)
-MIN_SCORE = 2
+# Auto-select needs a trigger phrase (3 points) or three topic words in common.
+MIN_SCORE = 3
+STOPWORDS = {
+    "the", "and", "for", "with", "into", "from", "that", "this", "then", "them", "they", "only", "will",
+    "your", "you", "are", "was", "has", "have", "not", "but", "all", "any", "can", "its", "via", "per",
+    "out", "one", "each", "when", "what", "how", "who", "use", "using", "back", "given", "test", "file",
+    "files", "read", "write", "create", "make", "open", "save", "new", "get", "set", "put", "add",
+}
 
 
 @dataclass
@@ -82,7 +89,7 @@ def load_all(skills_dir: Path) -> dict[str, Skill]:
 
 
 def _words(text: str) -> set[str]:
-    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 2}
+    return {w for w in re.findall(r"[a-z0-9]+", text.lower()) if len(w) > 2 and w not in STOPWORDS}
 
 
 def score(skill: Skill, task: str) -> int:

@@ -23,7 +23,7 @@ from .config import Settings, settings as default_settings
 from .fastpath import FastPath
 from .eyes.marks import Observation, foreground_title, observe
 from .eyes.screen import Screen, png_bytes
-from .handoff import ConsoleHandoff, Handoff
+from .handoff import Handoff, make_handoff
 from .models import ModelRouter
 from .replay import build_replay
 from .runlog import RunLog
@@ -68,7 +68,7 @@ def _compact_old_observations(messages: list) -> None:
 class Agent:
     def __init__(self, settings: Settings = default_settings, handoff: Handoff | None = None, echo=print):
         self.settings = settings
-        self.handoff = handoff or ConsoleHandoff()
+        self.handoff = handoff or make_handoff(settings.handoff_timeout, echo)
         self.echo = echo
         self.screen = Screen(settings.max_long_edge)
         self.log: RunLog | None = None
@@ -111,6 +111,8 @@ class Agent:
         })
         self.echo("Models: " + "; ".join(self.router.describe()))
         self.echo(f"Skills: {', '.join(self.skills) or 'none'}; selected: {chosen.name if chosen else 'none'}")
+        self.echo(f"Handoff channel: {type(self.handoff).__name__}")
+        self._notify(f"▶️ Run {self.log.run_id} started\n{task[:800]}")
         parts = [prompts.SYSTEM, skills.catalog(self.skills)]
         if chosen:
             parts.append(f"The skill below matches this task; follow it.\n\n{chosen.full_text()}")
@@ -358,8 +360,18 @@ class Agent:
         self.log.close(status, summary)
         self.browser.close()
         self.echo(f"\n== {status.upper()} after {steps} steps: {summary}\n   run log: {self.log.dir}")
+        replay = None
         try:
-            self.echo(f"   replay:  {build_replay(self.log.dir)}")
+            replay = build_replay(self.log.dir)
+            self.echo(f"   replay:  {replay}")
         except Exception as exc:  # the replay page must never cost us the run result
             self.echo(f"   replay failed: {exc!r}")
+        icon = {"success": "✅", "failed": "❌"}.get(status, "⚠️")
+        self._notify(f"{icon} Run {self.log.run_id}: {status.upper()} after {steps} steps\n{summary[:700]}",
+                     image=final, document=str(replay) if replay else None)
         return RunResult(status, summary, str(self.log.dir), steps)
+
+    def _notify(self, text: str, image: Image.Image | None = None, document: str | None = None) -> None:
+        notify = getattr(self.handoff, "notify", None)
+        if notify and self.settings.notify_runs:
+            notify(text, image=image, document=document)

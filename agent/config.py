@@ -64,6 +64,10 @@ class Settings:
     # Seconds to let the UI settle after actions before observing.
     settle_seconds: float = field(default_factory=lambda: float(_env("SETTLE_SECONDS", "0.6")))
     shell_timeout: int = field(default_factory=lambda: int(_env("SHELL_TIMEOUT", "120")))
+    # How long a handoff waits for a human answer (a reminder is sent halfway).
+    handoff_timeout: float = field(default_factory=lambda: float(_env("HANDOFF_TIMEOUT", "600")))
+    # Send run start/finish (with final screenshot and replay.html) to the handoff channel.
+    notify_runs: bool = field(default_factory=lambda: _env("NOTIFY_RUNS", "true").lower() in ("1", "true", "yes"))
     runs_dir: Path = field(default_factory=lambda: ROOT / _env("RUNS_DIR", "runs"))
     # The agent's own Chrome profile (logins persist across runs; separate from your daily profile).
     chrome_profile_dir: Path = field(default_factory=lambda: Path(

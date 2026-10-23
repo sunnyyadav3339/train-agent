@@ -7,6 +7,9 @@ import tempfile
 from pathlib import Path
 
 from agent import skills
+from agent.channels.telegram import Telegram
+from agent.handoff import TelegramHandoff
+from tests.fake_telegram import FakeTelegram
 from agent.config import settings
 from agent.eyes.marks import Element, Observation, observe, open_windows
 from agent.fastpath import match
@@ -97,7 +100,37 @@ def main() -> int:
                          and match(fake, {"role": "input", "value": "checked"}).id == 2
                          and match(fake, {"name": "nope"}) is None))
 
+    results.extend(handoff_checks(img))
+
     print(f"\n{sum(results)}/{len(results)} passed")
+
+
+def handoff_checks(img) -> list[bool]:
+    """Telegram handoff against a fake Bot API: buttons, typed replies, other chats, timeouts."""
+    fake = FakeTelegram(chat_id=42)
+    tg = Telegram("TEST", 42, api=fake.url)
+    h = TelegramHandoff(tg, timeout_s=4, echo=lambda *a: None)
+    out = []
+    try:
+        fake.push_text("stale message from before the question")
+        fake.on_send = lambda m, p, mid: (fake.push_text("intruder says yes", chat_id=999),
+                                          fake.push_button("approved", mid)) if m == "sendPhoto" else None
+        ans = h.ask("Pay Rs 145 for the ticket?", "approval", img)
+        photo = [p for m, p in fake.sent if m == "sendPhoto"][0]
+        out.append(check("handoff approval button", ans == "approved" and photo["has_markup"]
+                         and any(m == "answerCallbackQuery" for m, _ in fake.sent)))
+        fake.on_send = lambda m, p, mid: fake.push_text("Use the 11:00 train") if m == "sendPhoto" else None
+        out.append(check("handoff typed reply", h.ask("Which train?", "judgement", img) == "Use the 11:00 train"))
+        fake.on_send = None
+        sent_before = len(fake.sent)
+        ans = h.ask("Anyone there?", "stuck", None)
+        reminded = any("Still waiting" in p.get("text", "") for m, p in fake.sent[sent_before:])
+        out.append(check("handoff timeout + reminder", ans.startswith("(no answer") and reminded))
+        h.notify("run finished", image=img)
+        out.append(check("notify with screenshot", fake.sent[-1][0] == "sendPhoto"))
+    finally:
+        fake.close()
+    return out
     return 0 if all(results) else 1
 
 
